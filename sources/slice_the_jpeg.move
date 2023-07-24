@@ -202,27 +202,30 @@ module overmind::slice_the_jpeg {
         split_token_address: address
     ) acquires State, SplitToken {
 
-        // TODO: Ensure the NFT associated with the received split tokens is still owned by the 
-        //       module's resource account
-        // 
-        // USE: Use the check_if_nf_token_is_owned_by_account function below
+        let state = borrow_global_mut<State>(@overmind);
 
-        // TODO: Ensure the coin owner's split token balance is equal to the entire supply of tokens
-        // 
-        // USE: Use the check_if_split_token_balance_is_equal_to_supply function below
-        // 
-        // HINT: Retrieve the split token supply from the split token's property_map
+        let split_token_object = object::address_to_object<SplitToken>(split_token_address);
+        let nf_token_address = property_map::read_address<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_NFT_ADDRESS));
+        let admin_signer = account::create_signer_with_capability(&state.signer_capability);
 
-        // TODO: Burn all of the received split tokens
-        // 
-        // USE: Use the burn_internal function below
+        check_if_nf_token_is_owned_by_account<NFT>(nf_token_address, signer::address_of(&admin_signer));
 
-        // TODO: Transfer the associated NFT to the coin owner
-        // 
-        // HINT: Retreive the associated NFT address from the split token's property_map
+        let token_supply = property_map::read_u64<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_MAX_SUPPLY));
+        let split_balance = split_balance(signer::address_of(coin_owner), split_token_object);
+        check_if_split_token_balance_is_equal_to_supply(split_balance, token_supply);
 
-        // TODO: Emit a new Redeem Event
+        burn_internal(coin_owner, split_token_object, split_balance);
 
+        let nf_token_object = object::address_to_object<NFT>(nf_token_address);
+        object::transfer(&admin_signer, nf_token_object, signer::address_of(coin_owner));
+
+        event::emit_event<RedeemEvent>(
+            &mut state.redeem_events,
+            RedeemEvent {
+                redeemer_address: signer::address_of(coin_owner),
+                nft_address: nf_token_address
+            },
+        )
     }
 
     public entry fun call<NFT: key>(
@@ -451,12 +454,13 @@ module overmind::slice_the_jpeg {
 
     // HINT: Throw the ETokenBalanceIsNotEqualToTokenSupply code if check fails
     inline fun check_if_split_token_balance_is_equal_to_supply(token_balance: u64, token_supply: u64) {
-        
+        assert!(token_balance == token_supply, ETokenBalanceIsNotEqualToTokenSupply);
     }
 
     // HINT: Throw the ENftIsNotOwnedByAccount code if check fails
     inline fun check_if_nf_token_is_owned_by_account<NFT: key>(nf_token_address: address, account_address: address) {
-       
+        let nf_token_object = object::address_to_object<NFT>(nf_token_address);
+        assert!(object::owner(nf_token_object) == account_address, ENftIsNotOwnedByAccount);
     }
 
     // HINT: Throw the ENftIsOwnedByAccount code if check fails
