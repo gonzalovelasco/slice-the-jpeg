@@ -140,36 +140,60 @@ module overmind::slice_the_jpeg {
         split_token_project_uri: String
     ) acquires State, SplitToken {
 
-        // TODO: Ensure that the nf_token_owner_signer owns the provided NFT
-        // 
-        // USE: Use the check_if_account_owns_nft function below
+        let nf_token_object = object::address_to_object<NFT>(nf_token_address);
+        check_if_account_owns_nft(signer::address_of(nf_token_owner_signer), nf_token_object);
+        let state = borrow_global_mut<State>(@overmind);
 
-        // TODO: Ensure that the provided split_token_supply is above zero
-        // 
-        // USE: Use the check_if_new_supply_above_zero function below
+        check_if_new_supply_above_zero(split_token_supply);
 
-        // TODO: Ensure the split_token_call_threshold is valid with the provided split_token_supply
-        // 
-        // USE: Use the check_if_valid_call_threshold_amount function below
+        check_if_valid_call_threshold_amount(split_token_call_threshold, split_token_supply);
 
-        // TODO: Ensure that the fungible split token about to be created does not already exist
-        // 
-        // USE: Use the check_if_split_token_does_not_exist function below
-        // 
-        // HINT: Pre-generate the new split token address using the creator address, 
-        //       collection name, and new token name and check that address
+        let resource_account_signer_cap = &state.signer_capability;
+        let resource_account_address = account::get_signer_capability_address(resource_account_signer_cap);
 
-        // TODO: Transfer the NFT to the module's resource account
+        let expected_split_token_address = token::create_token_address(
+            &resource_account_address,
+            &string::utf8(SPLIT_COLLECTION_NAME),
+            &split_token_name
+        );
 
-        // TODO: Create the new fungible split token
-        // 
-        // USE: Use the create_split_token_as_fungible_token function below 
+        check_if_split_token_does_not_exist(expected_split_token_address);
 
-        // TODO: Mint the total supply of the new split tokens to the NFT owner
-        // 
-        // USE: Use the mint_internal function below
+        let admin_signer = account::create_signer_with_capability(&state.signer_capability);
+        object::transfer(nf_token_owner_signer, nf_token_object, signer::address_of(&admin_signer));
 
-        // TODO: Emit a new SplitEvent 
+        create_split_token_as_fungible_token(
+            &admin_signer,
+            split_token_description,
+            split_token_name,
+            split_token_project_uri,
+            split_token_name,
+            split_token_symbol,
+            split_token_icon_uri,
+            split_token_project_uri,
+            split_token_call_price,
+            split_token_call_threshold,
+            split_token_supply,
+            nf_token_address,
+            token::creator<NFT>(nf_token_object),
+            token::collection_name<NFT>(nf_token_object),
+            token::name<NFT>(nf_token_object),
+        );
+
+        let split_token_object = object::address_to_object(expected_split_token_address);
+        mint_internal(split_token_object, signer::address_of(nf_token_owner_signer), split_token_supply);
+
+        event::emit_event<SplitEvent>(
+            &mut state.split_events,
+            SplitEvent {
+                splitter_address: signer::address_of(nf_token_owner_signer),
+                nft_address: nf_token_address, 
+                split_token_address: expected_split_token_address, 
+                split_token_supply: split_token_supply,
+                split_token_call_threshold: split_token_call_threshold, 
+                split_token_call_price: split_token_call_price
+            },
+        )
 
     }
 
@@ -403,24 +427,25 @@ module overmind::slice_the_jpeg {
 
     // HINT: Throw the EAccountDoesNotOwnNft code if check fails
     inline fun check_if_account_owns_nft<NFT: key>(account_address: address, nf_token_object: Object<NFT>) {
-       
+        assert!(account_address == object::owner(nf_token_object), EAccountDoesNotOwnNft);
     }
 
     // HINT: Throw the ETokenSupplyIsZero code if check fails
     inline fun check_if_new_supply_above_zero(token_supply: u64) {
-        
+        assert!(token_supply > 0, ETokenSupplyIsZero);
     }
 
     // HINT: Throw the EThresholdAmountIsGreaterThanTokenSupply code if the threshold amount is not 
     //       greater than the token supply and throw EThresholdAmountIsNotGreaterThanHalfOfSupply 
     //       if the threshold amount is not greter than half of the token supply
     inline fun check_if_valid_call_threshold_amount(threshold_amount: u64, token_supply: u64) {
-        
+        assert!(threshold_amount < token_supply, EThresholdAmountIsGreaterThanTokenSupply);
+        assert!(threshold_amount > (token_supply/2), EThresholdAmountIsNotGreaterThanHalfOfSupply);
     }
 
     // HINT: Throw the ESplitTokenAlreadyExists code if check fails
     inline fun check_if_split_token_does_not_exist(split_token_address: address) {
-        
+        assert!(!exists<SplitToken>(split_token_address), ESplitTokenAlreadyExists);       
     }
 
     // HINT: Throw the ETokenBalanceIsNotEqualToTokenSupply code if check fails
