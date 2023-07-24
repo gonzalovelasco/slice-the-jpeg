@@ -109,19 +109,21 @@ module overmind::slice_the_jpeg {
     //==============================================================================================
 
     fun init_module(account: &signer) {
-        
-        // TODO: Create the module's resource account using the account signer and the SEED provided
-        //       above. 
-        //
-        // NOTE: Make sure to use the SEED constant or the tests won't pass
+        let (res_signer, res_cap) = account::create_resource_account(account, SEED);
 
-        // TODO: Register the resource account with the AptosCoin coin module. 
+        coin::register<AptosCoin>(&res_signer);
 
-        // TODO: Create the v2 token collection that will hold all of the fungible split tokens
-        // 
-        // USE: Use the create_split_collection function below
+        let collection_address = create_split_collection(&res_signer);
 
-        // TODO: Create a new State object and send it to account
+        let state = State {
+            signer_capability: res_cap,
+            collection_address: collection_address,
+            split_events: account::new_event_handle<SplitEvent>(account),
+            redeem_events: account::new_event_handle<RedeemEvent>(account),
+            call_events: account::new_event_handle<CallEvent>(account),
+            exchange_events: account::new_event_handle<ExchangeEvent>(account)
+        };
+        move_to(account, state)
 
     }
 
@@ -264,11 +266,21 @@ module overmind::slice_the_jpeg {
 
     fun create_split_collection(creator: &signer): address {
       
-        // TODO: Create an new token collection with an unlimited token supply
-        // 
-        // NOTE: Use the provided constants for collection decription, name, and uri
+        let description = string::utf8(SPLIT_COLLECTION_DESCRIPTION);
+        let name = string::utf8(SPLIT_COLLECTION_NAME);
+        let uri = string::utf8(SPLIT_COLLECTION_URI);
+        collection::create_unlimited_collection(
+            creator,
+            description,
+            name,
+            option::none(),
+            uri
+        );
 
-        // TODO: Return the address of the newly creted token collection
+        collection::create_collection_address(
+            &signer::address_of(creator),
+            &name
+        )
 
     }
 
