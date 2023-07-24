@@ -278,23 +278,33 @@ module overmind::slice_the_jpeg {
         split_token_address: address
     ) acquires State, SplitToken {
 
-        // TODO: Ensure the NFT associated with the received split tokens is not still owned by the 
-        //       module's resource account
-        // 
-        // USE: Use the check_if_nf_token_is_not_owned_by_account function below
- 
-        // TODO: Ensure the coin owner's split token balance is above zero
-        // 
-        // USE: Use the check_if_split_balance_is_above_zero function below
+        let state = borrow_global_mut<State>(@overmind);
 
-        // TODO: Transfer the correct amount of AptosCoin from the module's resource account to the coin
-        //       owner
+        let split_token_object = object::address_to_object<SplitToken>(split_token_address);
+        let nf_token_address = property_map::read_address<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_NFT_ADDRESS));
+        let admin_signer = account::create_signer_with_capability(&state.signer_capability);
 
-        // TODO: Burn the coin owner's provided split tokens
-        // 
-        // USE: Use the burn_internal function below
+        check_if_nf_token_is_not_owned_by_account<NFT>(nf_token_address, signer::address_of(&admin_signer));
 
-        // TODO: Emit a new ExchangeEvent
+        let split_balance = split_balance(signer::address_of(coin_owner), split_token_object);
+
+        check_if_split_balance_is_above_zero(split_balance);
+
+        let call_price = property_map::read_u64<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_CALL_PRICE));
+        let call_payment = split_balance * call_price;
+        coin::transfer<AptosCoin>(&admin_signer, signer::address_of(coin_owner), call_payment);
+
+        burn_internal(coin_owner, split_token_object, split_balance);
+
+        event::emit_event<ExchangeEvent>(
+            &mut state.exchange_events,
+            ExchangeEvent {
+                exchanger_address: signer::address_of(coin_owner), 
+                nft_address: nf_token_address, 
+                split_token_exchange_amount: split_balance, 
+                aptos_coin_exchange_payment: call_payment
+            },
+        )
 
     }
 
