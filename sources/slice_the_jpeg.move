@@ -233,32 +233,43 @@ module overmind::slice_the_jpeg {
         split_token_address: address
     ) acquires State, SplitToken {
 
-        // TODO: Ensure the NFT associated with the received split tokens is still owned by the 
-        //       module's resource account
-        // 
-        // USE: Use the check_if_nf_token_is_owned_by_account function below
+        let state = borrow_global_mut<State>(@overmind);
 
-        // TODO: Ensure the coin owner's split token balance is equal to or above the split token's 
-        //       call threshold
-        // 
-        // USE: Use the check_if_split_token_balance_is_equal_to_or_greater_than_call_threshold 
-        //      function below
- 
-        // TODO: Ensure the coin owner's aptos coin balance is equal to or greater than the call payment
-        // 
-        // USE: Use the check_if_aptos_coin_balance_is_equal_to_or_greater_than_call_payment 
-        //      function below
+        let split_token_object = object::address_to_object<SplitToken>(split_token_address);
+        let nf_token_address = property_map::read_address<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_NFT_ADDRESS));
+        let admin_signer = account::create_signer_with_capability(&state.signer_capability);
 
-        // TODO: Transfer the correct amount of AptosCoin from the module's resource account to 
-        //       the coin owner
+        check_if_nf_token_is_owned_by_account<NFT>(nf_token_address, signer::address_of(&admin_signer));
 
-        // TODO: Burn the coin owners provide split tokens
-        // 
-        // USE: Use the burn_internal function below
+        let split_balance = split_balance(signer::address_of(coin_owner), split_token_object);
+        let call_threshold = property_map::read_u64<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_CALL_THRESHOLD));
+        check_if_split_token_balance_is_equal_to_or_greater_than_call_threshold(split_balance, call_threshold);
 
-        // TODO: Transfer the associated NFT to the coin owner
+        let call_price = property_map::read_u64<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_CALL_PRICE));
+        let max_supply = property_map::read_u64<SplitToken>(&split_token_object, &string::utf8(PROPERTY_NAME_MAX_SUPPLY));
 
-        // TODO: Emit a new CallEvent 
+        let aptos_coin_balance = coin::balance<AptosCoin>(signer::address_of(coin_owner));
+
+        let call_payment = (max_supply - split_balance) * call_price;
+
+        check_if_aptos_coin_balance_is_equal_to_or_greater_than_call_payment(aptos_coin_balance, call_payment);
+
+        coin::transfer<AptosCoin>(coin_owner, signer::address_of(&admin_signer), call_payment);
+
+        burn_internal(coin_owner, split_token_object, split_balance);
+
+        let nf_token_object = object::address_to_object<NFT>(nf_token_address);
+        object::transfer(&admin_signer, nf_token_object, signer::address_of(coin_owner));
+
+        event::emit_event<CallEvent>(
+            &mut state.call_events,
+            CallEvent {
+                caller_address: signer::address_of(coin_owner), 
+                nft_address: nf_token_address, 
+                caller_split_token_amount: split_balance,
+                aptos_call_payment_amount: call_payment
+            },
+        )
         
     }
 
@@ -465,22 +476,23 @@ module overmind::slice_the_jpeg {
 
     // HINT: Throw the ENftIsOwnedByAccount code if check fails
     inline fun check_if_nf_token_is_not_owned_by_account<NFT: key>(nf_token_address: address, account_address: address) {
-        
+        let nf_token_object = object::address_to_object<NFT>(nf_token_address);
+        assert!(object::owner(nf_token_object) != account_address, ENftIsOwnedByAccount);
     }
 
     // HINT: Throw the ESplitTokenBalanceIsLessThanCallThreshold code if check fails
     inline fun check_if_split_token_balance_is_equal_to_or_greater_than_call_threshold(split_token_balance: u64, call_threshold: u64) {
-        
+        assert!(split_token_balance >= call_threshold, ESplitTokenBalanceIsLessThanCallThreshold);
     }
 
     // HINT: Throw the EAptosCoinBalanceIsLessThanCallPayment code if check fails
     inline fun check_if_aptos_coin_balance_is_equal_to_or_greater_than_call_payment(aptos_coin_balance: u64, call_payment: u64) {
-        
+        assert!(aptos_coin_balance >= call_payment, EAptosCoinBalanceIsLessThanCallPayment);
     }
 
     // HINT: Throw the ESplitTokenBalanceIsZero code if check fails
     inline fun check_if_split_balance_is_above_zero(split_token_balance: u64) {
-        
+        assert!(split_token_balance > 0, ESplitTokenBalanceIsZero);
     }
 
     //================================================================================================
