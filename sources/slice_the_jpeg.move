@@ -302,31 +302,77 @@ module overmind::slice_the_jpeg {
         nft_token_name: String
     ) {
 
-        // TODO: Create a new named token in the split token collection
+        let constructor_ref = token::create_named_token(
+            creator,
+            string::utf8(SPLIT_COLLECTION_NAME),
+            description,
+            name,
+            option::none(),
+            uri
+        );
 
-        // TODO: Generates the object signer and the refs. The object signer is used to publish a resource
-        // (e.g., RestorationValue) under the token object address. The refs are used to manage the token.
+        let token_signer = object::generate_signer(&constructor_ref);
 
-        // TODO: Create the token's property_map with the following properties: 
-        //       - nft address
-        //       - call price
-        //       - call threshold
-        //       - max supply
-        //       - nft token name
-        //       - nft collection name
-        //       - nft creator address
-        // 
-        // USE: property_map::prepare_input, property_map::init, & property_map::add_typed
-        //
-        // NOTE: Make sure to use the provided property keys to ensure the tests pass
+        let property_mutator_ref = property_map::generate_mutator_ref(&constructor_ref);
+        let properties = property_map::prepare_input(vector[], vector[], vector[]);
+        property_map::init(&constructor_ref, properties);
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_CALL_PRICE),
+            call_price
+        );
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_CALL_THRESHOLD),
+            call_threshold
+        );
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_MAX_SUPPLY),
+            max_supply
+        );
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_NFT_ADDRESS),
+            nft_address
+        );
 
-        // TODO: Turn this new token into a fungible token
-        // 
-        // USE: primary_fungible_store::create_primary_store_enabled_fungible_asset
-        
-        // TODO: Create the SplitToken object with the required token info and send it to the new
-        //       token object
-    
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_NFT_TOKEN_NAME),
+            nft_token_name
+        );
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_NFT_COLLECTION_NAME),
+            nft_collection_name
+        );
+        property_map::add_typed(
+            &property_mutator_ref,
+            string::utf8(PROPERTY_NAME_NFT_CREATOR_ADDRESS),
+            nft_creator_address
+        );
+
+        primary_fungible_store::create_primary_store_enabled_fungible_asset(
+            &constructor_ref,
+            option::none(),
+            fungible_asset_name,
+            fungible_asset_symbol,
+            0,
+            icon_uri,
+            project_uri
+        );
+  
+        let fungible_asset_mint_ref = fungible_asset::generate_mint_ref(&constructor_ref);
+        let fungible_asset_burn_ref = fungible_asset::generate_burn_ref(&constructor_ref);
+
+        let split_token = SplitToken {
+            property_mutator_ref,
+            fungible_asset_mint_ref,
+            fungible_asset_burn_ref,
+        };
+
+        move_to(&token_signer, split_token);
     }
 
     
