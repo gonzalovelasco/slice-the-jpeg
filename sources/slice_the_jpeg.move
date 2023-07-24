@@ -401,24 +401,25 @@ module overmind::slice_the_jpeg {
 
     
     public fun split_balance(account: address, split_token: Object<SplitToken>): u64 {
-        // TODO: Fetch and return the balance of the provided fungible split token of the account
-        //
-        // HINT: https://aptos.dev/standards/aptos-token-v2/#fungible-token
-        
+        let metadata = object::convert<SplitToken, Metadata>(split_token);
+        let store = primary_fungible_store::ensure_primary_store_exists(account, metadata);
+        fungible_asset::balance(store)
     }
 
     fun mint_internal(split_token_object: Object<SplitToken>, receiver: address, amount: u64) acquires SplitToken {
-        // TODO: Mint amount of the provided split token object and send it to the receiver address
-        //
-        // HINT: https://aptos.dev/standards/aptos-token-v2/#fungible-token
-        
+        let token_address = object::object_address(&split_token_object);
+        let split_token = borrow_global<SplitToken>(token_address);
+        let fungible_asset_mint_ref = &split_token.fungible_asset_mint_ref;
+        let fa = fungible_asset::mint(fungible_asset_mint_ref, amount);
+        primary_fungible_store::deposit(receiver, fa);
     }
 
     fun burn_internal(owner: &signer, split_token_object: Object<SplitToken>, amount: u64) acquires SplitToken {
-        // TODO: Burn amount of split tokens from the provided split token object
-        //
-        // HINT: https://aptos.dev/standards/aptos-token-v2/#fungible-token
-        
+        let metadata = object::convert<SplitToken, Metadata>(split_token_object);
+        let split_token_addr = object::object_address(&split_token_object);
+        let split_token = borrow_global<SplitToken>(split_token_addr);
+        let from_store = primary_fungible_store::ensure_primary_store_exists(signer::address_of(owner), metadata);
+        fungible_asset::burn_from(&split_token.fungible_asset_burn_ref, from_store, amount);
     }
 
     //==============================================================================================
